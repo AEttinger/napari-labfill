@@ -34,7 +34,7 @@ the coverage at least stays the same before you submit a pull request.
 ## License
 
 Distributed under the terms of the [BSD-3] license,
-"napari-labfill" is free and open source software
+"napari-labfill" is free and open source software.
 
 ## Issues
 
