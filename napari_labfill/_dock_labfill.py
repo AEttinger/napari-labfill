@@ -1,32 +1,39 @@
-"""
-This module is an example of a barebones QWidget plugin for napari
-
-It implements the ``napari_experimental_provide_dock_widget`` hook specification.
-see: https://napari.org/docs/dev/plugins/hook_specifications.html
-
-Replace code below according to your needs.
-"""
-from typing import TYPE_CHECKING
-
-from enum import Enum
-import numpy as np
 from napari_plugin_engine import napari_hook_implementation
+from qtpy.QtWidgets import QWidget, QHBoxLayout, QPushButton
+from magicgui import magic_factory
 
-if TYPE_CHECKING:
-    import napari
-from magicgui.widgets import PushButton
-from skimage.segmentation import flood, flood_fill
-from skimage.filters import gaussian
+
+class LabFillQWidget(QWidget):
+    # your QWidget.__init__ can optionally request the napari viewer instance
+    # in one of two ways:
+    # 1. use a parameter called `napari_viewer`, as done here
+    # 2. use a type annotation of 'napari.viewer.Viewer' for any parameter
+    def __init__(self, napari_viewer):
+        super().__init__()
+        self.viewer = napari_viewer
+        self.isActive = True
+
+        self.btn = QPushButton(self)
+        self.btn.setText("Flood fill")
+        self.btn.setCheckable(True)
+        self.btn.setDown(True)
+        self.btn.toggled.connect(self._on_click)
+
+        self.setLayout(QHBoxLayout())
+        self.layout().addWidget(self.btn)
+
+    def _on_click(self):
+        if self.isActive:
+            self.btn.setDown(False)
+            self.isActive = not self.isActive
+            print("Flood fill is {}.".format(self.isActive))
+        else:
+            self.btn.setDown(True)
+            self.isActive = not self.isActive
+            print("Flood fill is {}.".format(self.isActive))
 
 
 @napari_hook_implementation
-def napari_experimental_provide_function():
-    # we can return a single function
-    # or a tuple of (function, magicgui_options)
-    # or a list of multiple functions with or without options, as shown here:
-    return fill_connected
-
-
-def fill_connected(data: "napari.types.ImageData", threshold: int, sigma: float, connected: int) -> "napari.types.LabelsData":
-    img_gauss = gaussian(data, sigma=sigma, preserve_range=True)
-    return flood(img_gauss, tolerance=threshold, connectivity=connected).astype(int)
+def napari_experimental_provide_dock_widget():
+    # you can return either a single widget, or a sequence of widgets
+    return LabFillQWidget
