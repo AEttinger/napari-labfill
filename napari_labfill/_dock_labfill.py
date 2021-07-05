@@ -32,6 +32,13 @@ class LabFillQWidget(QWidget):
             self.isActive = not self.isActive
             print("Flood fill is {}.".format(self.isActive))
 
+    def _return_xy(self):
+        while self.isActive:
+            @self.viewer.layer.mouse_drag_callbacks.append
+            def callback(layer, event):
+                print(layer.coordinates)
+                print(event)
+
 
 @napari_hook_implementation
 def napari_experimental_provide_dock_widget():
