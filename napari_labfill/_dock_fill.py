@@ -8,6 +8,7 @@ import numpy as np
 import napari
 from napari.types import ImageData
 from functools import partial
+import time
 
 
 from qtpy.QtWidgets import (
@@ -51,22 +52,25 @@ class FloodFillController(QWidget):
         self.sig_slide.setRange(0, 20)
         self.sig_slide.setValue(3)
         self.sig_slide.setSingleStep(1)
-        self.sig_slide.valueChanged.connect(self.update_sig)
+        self.sig_slide.setEnabled(False)
+        # self.sig_slide.valueChanged.connect(self.update_sig)
 
         self.tol_slide = QSlider(Qt.Horizontal, self)
         self.tol_slide.setRange(0, 99)
         self.tol_slide.setValue(20)
         self.tol_slide.setSingleStep(1)
-        self.tol_slide.valueChanged.connect(self.update_tol)
+        self.tol_slide.setEnabled(False)
+        # self.tol_slide.valueChanged.connect(self.update_tol)
 
         self.con_slide = QSlider(Qt.Horizontal, self)
         self.con_slide.setRange(0, 99)
         self.con_slide.setValue(32)
         self.con_slide.setSingleStep(1)
-        self.con_slide.valueChanged.connect(self.update_con)
+        self.con_slide.setEnabled(False)
+        # self.con_slide.valueChanged.connect(self.update_con)
 
         self.ffill_btn = QPushButton(self)
-        self.ffill_btn.setText("Toggle flood fill")
+        self.ffill_btn.setText("Initialize")
         self.ffill_btn.setCheckable(True)
         self.ffill_btn.setDown(False)
         self.ffill_btn.clicked.connect(self.button_switch)
@@ -121,6 +125,18 @@ def update_layer(new_layer, layer_name):
         raise
 
 
+def on_sigma_changed(value):
+    w.sig_val.setText(str(value))
+    if w.init:
+        gauss_worker = gaussian_blur(viewer.layers[w.original_image_name].data, sigma=value)
+        gauss_worker.returned.connect(partial(update_layer, layer_name='Gaussian blur'))
+        w.status.setText('Gaussian blur with sigma={}...'.format(w.sig_slide.value()))
+        gauss_worker.start()
+        gauss_worker.finished.connect(lambda: w.status.setText('Gaussian blur finished.'))
+    else:
+        w.status.setText('Not initialized yet.')
+
+
 # long running function
 @thread_worker
 def flood_fill(image, sigma, seed_point, connectivity, tolerance):
@@ -145,7 +161,7 @@ def flood_fill(image, sigma, seed_point, connectivity, tolerance):
 
 
 @thread_worker
-def yield_gaussian(image, sigma):
+def gaussian_blur(image, sigma):
     return filters.gaussian(image, sigma=sigma, preserve_range=True)
 
 
@@ -160,6 +176,10 @@ def create_flood_fill_widget():
             image = viewer.layers.selection.active
             w.set_original_image_name(image.name)
             w.initialize(True)
+            w.sig_slide.setEnabled(True)
+            w.sig_slide.valueChanged.connect(on_sigma_changed)
+            w.tol_slide.setEnabled(True)
+            w.con_slide.setEnabled(True)
             if image.data.ndim > 3:
                 w.status.setText('Please select a single channel image.')
             if image.data.ndim <= 3:
@@ -169,33 +189,23 @@ def create_flood_fill_widget():
                 if 'Flood fill labels' not in viewer.layers:
                     viewer.add_labels(empty, name='Flood fill labels')
                 if 'Gaussian blur' not in viewer.layers:
-                    gauss_worker = yield_gaussian(image.data, sigma=w.sig_slide.value())
+                    # rewrite to use yield instead of return?
+                    gauss_worker = gaussian_blur(image.data, sigma=w.sig_slide.value())
                     gauss_worker.returned.connect(partial(viewer.add_image, name='Gaussian blur'))
-                    w.status.setText('Gaussian blur...')
+                    w.status.setText('Gaussian blur with sigma={}...'.format(w.sig_slide.value()))
                     gauss_worker.start()
-                    # viewer.add_image(filters.gaussian(image.data, sigma=w.sig_slide.value()), name='Gaussian blur')
                     gauss_worker.finished.connect(lambda: w.status.setText('Gaussian blur finished.'))
+                w.ffill_btn.setText('Toggle flood fill')
         else:
             w.status.setText('Please select an image layer.')
 
-        # @viewer.layers.layer.mouse_drag_callbacks.append
-        # def callback(layer, event):
-        #    print(event.pos)
-        #    print(layer.coordinates)
-
-    def on_sigma_changed(sigma):
-        w.status.setText('Gaussian blur...')
-        gauss_worker.send(sigma=w.sig_slide.value())
-        gauss_worker.finished.connect(lambda: w.status.setText('Gaussian blur finished.'))
-
     w.ffill_btn.clicked.connect(init_layers)
 
-    if w.init:
-        # gauss_worker = yield_gaussian(viewer.layers[w.original_image_name].data, sigma=w.sig_slide.value())
-        # gauss_worker.start()
-        # gauss_worker.returned.connect(partial(update_layer, layer_name='Gaussian blur'))
-        # w.sig_slide.valueChanged.connect(partial(on_sigma_changed, sigma=w.sig_slide.value()))
-        w.sig_val.valueChanged.connect(lambda: w.status.setText('Sigma = {}'.format(w.sig_slide.value())))
+    if len(viewer.layers) > 0:
+        @viewer.layers.selection.active.mouse_drag_callbacks.append
+        def position_callback(layer, event):
+            print(event.pos)
+            print(layer.coordinates)
 
     return w
 
@@ -204,8 +214,5 @@ if __name__ == "__main__":
     viewer = napari.Viewer()
     w = create_flood_fill_widget()
     viewer.window.add_dock_widget(w)
-    # sigma = w.sig_slide.value()
-    # tolerance = w.tol_slide.value()
-    # connectivity = w.con_slide.value()
 
     napari.run()
