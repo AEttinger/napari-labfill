@@ -127,6 +127,10 @@ def update_layer(new_layer, layer_name):
 
 def on_sigma_changed(value):
     w.sig_val.setText(str(value))
+    """
+    # this does not work
+    # probably because it generates several new threads when moving the slider
+    # computer becomes unresponsive, heats up
     if w.init:
         gauss_worker = gaussian_blur(viewer.layers[w.original_image_name].data, sigma=value)
         gauss_worker.returned.connect(partial(update_layer, layer_name='Gaussian blur'))
@@ -135,6 +139,7 @@ def on_sigma_changed(value):
         gauss_worker.finished.connect(lambda: w.status.setText('Gaussian blur finished.'))
     else:
         w.status.setText('Not initialized yet.')
+    """
 
 
 # long running function
@@ -190,7 +195,7 @@ def create_flood_fill_widget():
                     viewer.add_labels(empty, name='Flood fill labels')
                 if 'Gaussian blur' not in viewer.layers:
                     # rewrite to use yield instead of return?
-                    gauss_worker = gaussian_blur(image.data, sigma=w.sig_slide.value())
+                    gauss_worker = gaussian_blur(image.data, sigma=3)
                     gauss_worker.returned.connect(partial(viewer.add_image, name='Gaussian blur'))
                     w.status.setText('Gaussian blur with sigma={}...'.format(w.sig_slide.value()))
                     gauss_worker.start()
